@@ -246,11 +246,9 @@ def train(summary_dir, pars):
             ep_rewards[i] = []
             ep_dones[i] = []
             flag_step[i] = 0
-            # actlist =[ 0,  1,  5,  8, 57, 33, 21, 27, 51, 39, 45, 13,  3, 29, 53, 35,  6, 47,
-            #  41, 23, 59, 16,  4, 34, 46, 40, 10, 58, 52, 14, 22, 28, 31, 55, 37, 49,
-            #  43, 61, 19, 25, 62, 63, 65, 64, 66]
-            # actlist = [0, 1, 8, 56, 26, 45, 51, 21, 13, 33, 39, 5, 41, 29, 6, 47, 53, 35, 59, 16, 23, 3,
-                       # 34, 46, 40, 11, 49, 58, 61, 43, 55, 52, 28, 15, 22, 37, 31, 19, 4, 25, 62, 63, 65, 64, 66]
+            # act_list = [0, 1, 8, 12, 20, 45, 56, 38, 51, 27, 33, 5, 2, 4, 59, 29,
+            #             36, 17, 24, 54, 48, 42, 40, 46, 34, 10, 7, 15, 22, 28, 52,
+            #             58, 55, 43, 61, 49, 31, 19, 37, 25, 62, 63, 65, 64, 66]
             while i_step < batch_size:
                 num_episods[i] += 1
                 eps = max(- max(i_update - 10000, 0) * (explore_eps - 0.5) / 10000 + explore_eps, 0.5)
@@ -262,16 +260,13 @@ def train(summary_dir, pars):
                     weights_tensor = torch.from_numpy(np.copy(weights)).to(device)
                     ppo_agent.buffers[i].masks.append(mask_tensor)
                     ppo_agent.buffers[i].weights.append(weights_tensor)
-                    # print(weights_tensor)
                     state_tensor, action, action_logprob = ppo_agent.select_action(fea, mask, weights_tensor) \
                         if determine else ppo_agent.greedy_select_action(fea, mask, weights_tensor)  # state_tensor is the tensor of current state
                     ppo_agent.buffers[i].states.append(state_tensor)
                     ppo_agent.buffers[i].actions.append(action)
                     ppo_agent.buffers[i].logprobs.append(action_logprob)
-                    # action = actlist[i_step-1]
-                    # print(i_step-1)
+                    # action =act_list[i_step - 1]
                     _, fea, reward, done, _, mask, weights, time, _ = env.step(action)
-                    # print("Reward: {} \t Time: {}".format(reward, time))
 
                     # saving reward and is_terminals
                     ppo_agent.buffers[i].rewards.append(reward)

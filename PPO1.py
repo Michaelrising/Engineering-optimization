@@ -32,6 +32,8 @@ class Actor(nn.Module):
 
         self.device = device
         self.actor = nn.Sequential(
+                # nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3)),
+                # nn.LeakyReLU(),
                 nn.Linear(state_dim, 128),
                 nn.LeakyReLU(),
                 nn.Linear(128, 256),
@@ -56,13 +58,15 @@ class Critic(nn.Module):
         self.device = device
         # critic
         self.critic = nn.Sequential(
+            # nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3)),
+            # nn.LeakyReLU(),
             nn.Linear(state_dim, 128),
             nn.LeakyReLU(),
             nn.Linear(128, 256),
             nn.LeakyReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(256, 64),
             nn.LeakyReLU(),
-            nn.Linear(128, 1)
+            nn.Linear(64, 1)
         )
 
     def forward(self, state):
@@ -78,26 +82,6 @@ class ActorCritic(nn.Module):
 
         self.actor = Actor(state_dim, action_dim, device)
         self.critic = Critic(state_dim, action_dim, device)
-        # self.actor = nn.Sequential(
-        #         nn.Linear(state_dim, 128),
-        #         nn.LeakyReLU(),
-        #         nn.Linear(128, 256),
-        #         nn.LeakyReLU(),
-        #         nn.Linear(256, 64),
-        #         nn.LeakyReLU(),
-        #         nn.Linear(64, action_dim)
-        #     )
-        #
-        # # critic
-        # self.critic = nn.Sequential(
-        #     nn.Linear(state_dim, 128),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(128, 256),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(256, 128),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(128, 1)
-        # )
 
     def forward(self):
         raise NotImplementedError
@@ -211,14 +195,14 @@ class PPO:
 
     def select_action(self, state, mask, weights):
         with torch.no_grad():
-            state = torch.FloatTensor(state).to(self.device)
+            state = torch.FloatTensor(state).to(self.device) #.unsqueeze(0).unsqueeze(0)
             action, action_logprob = self.policy_old.act(state, mask, weights)
 
             return state, action.item(), action_logprob
 
     def greedy_select_action(self, state, mask, weights):
         with torch.no_grad():
-            state = torch.FloatTensor(state).to(self.device)
+            state = torch.FloatTensor(state).to(self.device) #.unsqueeze(0).unsqueeze(0)
             try:
                 action, action_logprob = self.policy_old.act_exploit(state, mask, weights)
             except ValueError:

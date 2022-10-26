@@ -112,13 +112,12 @@ class ProgEnv(Constraints, ReadInfo):
 
     def startTimeDetermine(self, graph): # fix !!!!!!
         assert len(self.timeSeq) + 1 == graph.shape[0]
-        position = -1 # self.actSeq.index(self.crtAct) # -1
 
         if len(self.timeSeq) != 0:
             OutDegree, InDegree = graph[:-1, -1], graph[-1, :-1]
             OutDegree[OutDegree == 0] = -50000
             InDegree[InDegree == 0] = -50000
-            latestTime = np.array(self.timeSeq) - OutDegree - 1# [, ) right not closed so minus 1
+            latestTime = np.array(self.timeSeq) - OutDegree
             earliestTime = np.array(self.timeSeq) + InDegree
             if int(earliestTime.max()) <= int(latestTime.min()):
                 greedy_startTime = int(earliestTime.max()) if earliestTime.max() > - 1000 else self.crtTime # greedy choice of start time
@@ -164,37 +163,22 @@ class ProgEnv(Constraints, ReadInfo):
                 time_urgency_index[i] = 10000
                 action_states_vec = self.stateGraph[:, i]
                 back_time_check_actions = np.where(action_states_vec < 0)[0]
-                for back_action in back_time_check_actions:
-                    if back_action in self.actionSeq:
-                        pos = np.where(back_action == self.actionSeq)[0]
-                        pos = pos[0].item()
-                        back_action_start_time = self.timeSeq[int(pos)]
-                        if back_action_start_time - self.crtTime >= action_states_vec[int(back_action)]:
-                            time_feasibleMask[i] = 1
-                            feasible_latest_time_array[i] = min(back_action_start_time - action_states_vec[int(back_action)] + 0.1, feasible_latest_time_array[i])
-                        else:
-                            time_feasibleMask[i] = -1
-                            feasible_latest_time_array[i] = 0.1
-                        time_urgency_index[i] = min(- self.crtTime + back_action_start_time - action_states_vec[int(back_action)] + 0.1, time_urgency_index[i])
+                valid_back_time_check_actions = back_time_check_actions[
+                    np.isin(back_time_check_actions, self.actionSeq)]
+                for back_action in valid_back_time_check_actions:
+                    pos = np.where(back_action == self.actionSeq)[0]
+                    pos = pos[0].item()
+                    back_action_start_time = self.timeSeq[int(pos)]
+                    if back_action_start_time - self.crtTime >= action_states_vec[int(back_action)]:
+                        time_feasibleMask[i] = 1
+                        feasible_latest_time_array[i] = min(back_action_start_time - action_states_vec[int(back_action)], feasible_latest_time_array[i])
+                    else:
+                        time_feasibleMask[i] = -1
+                        feasible_latest_time_array[i] = 0.1
+                    time_urgency_index[i] = min(- self.crtTime + back_action_start_time - action_states_vec[int(back_action)], time_urgency_index[i])
 
-        # top_priority_action = np.where(time_feasibleMask == -1)[0]
-        # less_priority_action = np.where(time_feasibleMask == 1)[0]
-        # non_priority_action = np.where(feasible_latest_time_array == 10000)[0]
-
-        # time_urgency_index[feasibleActivity] = self.crtTime - self.stateGraph[:, feasibleActivity]
         time_urgency_index[np.where(time_urgency_index == 10000)[0]] = max(time_urgency_index[np.where(time_urgency_index != 10000)[0]]) + 1
-        # feasible_latest_time_array[non_priority_action] = 1
-        # max_times = max(feasible_latest_time_array) + 2
-        # feasible_latest_time_array[~act_feasibleMask] = max_times
-        # feasible_weights = np.array([max_times - t for t in feasible_latest_time_array])
-        # feasible_weights[non_priority_action] = 1
-        # sum_times = sum(feasible_weights)
-        # feasible_weights = np.array([t/sum_times for t in feasible_weights])
-        #
-        # if top_priority_action.shape[0] != 0:
-        #     feasible_weights[top_priority_action] = 0.99/(top_priority_action.shape[0] + less_priority_action.shape[0])
-        #     feasible_weights[less_priority_action] = 0.01/(top_priority_action.shape[0] + less_priority_action.shape[0])
-        #     feasible_weights[~act_feasibleMask] = 0
+
         self.action_feasibleMask = act_feasibleMask
         self.time_feasibleMask = time_feasibleMask
         return feasibleActivity, feasible_latest_time_array, time_urgency_index
@@ -202,13 +186,14 @@ class ProgEnv(Constraints, ReadInfo):
     def renew_time_feasibility(self, PastActGraph, PastLogicVec2, startTime):
         action_states_vec = self.stateGraph[:, int(self.actionSeq[-1])]
         back_time_check_actions = np.where(action_states_vec < 0)[0]
+        valid_back_time_check_actions = back_time_check_actions[np.isin(back_time_check_actions, self.actionSeq[:-1])]
         greedy_startTime, latest_startTime = self.startTimeDetermine(PastActGraph)
         start_Time = max(startTime, greedy_startTime)
         time_Feasible = False
         RenewFeasible = self.Is_Renewable_Resource_Feasible(self.modeSeq, self.actSeq, self.timeSeq, start_Time)
         while start_Time <= latest_startTime:
             flag = 0
-            for back_action in back_time_check_actions:
+            for back_action in valid_back_time_check_actions:
                 if back_action in self.actionSeq:
                     pos = np.where(back_action == self.actionSeq)[0]
                     pos = pos[0].item()
@@ -217,7 +202,7 @@ class ProgEnv(Constraints, ReadInfo):
                         flag += 1
                 else:
                     flag += 1
-            if flag == back_time_check_actions.shape[0]:
+            if flag == valid_back_time_check_actions.shape[0]:
                 time_Feasible = True
             if time_Feasible and RenewFeasible:
                 break
@@ -241,7 +226,7 @@ class ProgEnv(Constraints, ReadInfo):
         nonrenew_Penalty = np.dot(diff_NonrenewR * crt_duration,
                                   self.price_nonrenewable_resource.reshape(-1))  # nonrenew penalty cost2
         duration_Penalty = diff_duration * 1
-        time_Penalty = 0 #(self.crtTime - g_time)  # g_time means the earliest start time for each activity
+        time_Penalty = 1 * (self.crtTime - g_time)  # g_time means the earliest start time for each activity
         return renew_Penalty, nonrenew_Penalty, duration_Penalty, time_Penalty
 
     def step(self, action):
@@ -320,9 +305,9 @@ class ProgEnv(Constraints, ReadInfo):
             reward -= self.not_feasible_history * 50
 
         if self.ppo == 'linear':
-            fea = np.concatenate((self.actStatus, self.action_feasibleMask, time_urgency_index)) # time_urgency_index
+            fea = np.concatenate((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)) # time_urgency_index
         else:
-            fea = np.vstack((self.actStatus, self.action_feasibleMask,  time_urgency_index)).T
+            fea = np.vstack((self.actStatus, self.action_feasibleMask,   self.time_feasibleMask)).T
         return self.stateGraph, fea, reward, self.done, self.candidate, return_mask, feasible_weights,  self.crtTime, {'time': timeFeasible, 'activity':actionFeasible, 'renew': RenewFeasible, 'nonrenew': nonRenewFeasible}
 
     def reset(self):
