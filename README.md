@@ -1,8 +1,7 @@
-models: PPO model, graph cnn model
-params.py: setting parameters of environment and neural network
-main.py: training model file, including RL method(PPO)
-tool.py: some supplementary functions
-utils.py: some action functions
+Codes: 
 
-Actor-Critic algorithms:https://papers.nips.cc/paper/1999/file/6449f44a102fde848669bdd9eb6b76fa-Paper.pdf
-PPO method:https://arxiv.org/abs/1707.06347
+main.py runs for MLP or CNN model, change the "acnet" in params.py to indicate which actor/critic network to use.
+
+Codes/GNN_POO:
+
+main.py runs for GNN model, while some more work needs to be done here
