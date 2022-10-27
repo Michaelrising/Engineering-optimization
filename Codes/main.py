@@ -1,5 +1,4 @@
-import numpy as np
-from PPO1 import *
+from PPO import *
 from utils import *
 from ProgramEnv import ProgEnv
 import torch
@@ -8,184 +7,97 @@ from params import configs
 from torch.utils.tensorboard import SummaryWriter
 import os
 from datetime import datetime
-device = torch.device(configs.device)
 
 
+def train(summary_dir, pars):
 
-################################## set device ##################################
-
-def set_device(cuda=None):
+    ################## set device ##################
+    device = configs.device
     print("============================================================================================")
-
     # set device to cpu or cuda
-    device = torch.device('cpu')
-
-    if torch.cuda.is_available() and cuda is not None:
-        device = torch.device('cuda:' + str(cuda))
+    if torch.cuda.is_available() and device == 'cuda:0':
         torch.cuda.empty_cache()
         print("Device set to : " + str(torch.cuda.get_device_name(device)))
     else:
         print("Device set to : cpu")
 
     print("============================================================================================")
-    return device
-
-
-def greedy_evaluate(test_env, model):
-    device = model.device
-    _, fea, _, mask,weights  = test_env.reset()
-    epi_rewards = 0
-    actions = []
-    times = []
-    rewards = []
-    time_feasible = []
-    activity_feasible = []
-    renew_feasible = []
-    non_renew_feasible = []
-    feasible_printf = False
-    step = 0
-    while True:
-        fea_tensor = torch.from_numpy(np.copy(fea)).to(device).float()
-        weights_tensor = torch.from_numpy(np.copy(weights)).to(device).float()
-        with torch.no_grad():
-            action, _ = model.act_exploit(fea_tensor, mask, weights_tensor)
-        _, fea, reward, done, _, mask, weights, time, feasible_info = test_env.step(action.item())
-        epi_rewards += reward
-        rewards.append(int(reward))
-        actions.append(action.item())
-        time_fsb, act_fsb, renew_fsb, non_renew_fsb = feasible_info['time'], feasible_info['activity'], feasible_info['renew'], feasible_info['nonrenew']
-        time_feasible.append(time_fsb)
-        activity_feasible.append(act_fsb)
-        renew_feasible.append(renew_fsb)
-        non_renew_feasible.append(non_renew_fsb)
-        if not feasible_printf:
-            if not time_fsb:
-                print("Time Feasible error at step {}".format(step))
-                feasible_printf = True
-            if not act_fsb:
-                print("Activity Feasible error at step {}".format(step))
-                feasible_printf = True
-            if not renew_fsb:
-                print("Renew Resource Feasible error at step {}".format(step))
-                feasible_printf = True
-            if not non_renew_fsb:
-                print("Non Renew Resource Feasible error at step {}".format(step))
-                feasible_printf = True
-        step += 1
-
-        times.append(time)
-        if done:
-            break
-
-    ActSeq = []
-    ModeSeq = []
-    TimeSeq = times
-    mode_Number = test_env.Activity_mode_Num
-    cum_sum = np.cumsum(mode_Number) - 1
-    for act in actions:
-        activity = np.where(cum_sum >= act)[0][0].item()
-        mode = max(act - cum_sum[max(int(activity)-1, 0)], 1)
-        ActSeq.append(activity)
-        ModeSeq.append(mode)
-    return epi_rewards, rewards, actions, ActSeq, ModeSeq, TimeSeq
-
-
-################################### Training ###################################
-
-def train(summary_dir, pars):
-    ################## set device ##################
-    device = 'cuda:0' #set_device() if configs.cuda_cpu == "cpu" else set_device(configs.cuda)
 
     ####### initialize environment hyperparameters ######
-
     num_env = configs.num_envs
     max_updates = configs.max_updates
-    eval_interval = 50
+    eval_interval = configs.eval_interval
     has_continuous_action_space = False  # continuous action space; else discrete
 
-    max_ep_len = 120  # max timesteps in one episode
-
-    print_freq = 2  # print avg reward in the interval (in num updating steps)
-    log_freq = 2  # log avg reward in the interval (in num updating steps)
+    print_freq = configs.print_freq  # print avg reward in the interval (in num updating steps)
+    log_freq = configs.log_freq  # log avg reward in the interval (in num updating steps)
     action_std = 0.6  # starting std for action distribution (Multivariate Normal)
-    explore_eps = 0.8
+    explore_upper_eps = configs.explore_upper_eps
+    explore_lower_eps = configs.explore_lower_eps
+    exploit_init_step = configs.exploit_init_step
 
     ####################################################
     ################ PPO hyperparameters ################
 
-    decay_step_size = 1000
-    decay_ratio = 0.8
-    grad_clamp = 0.2
-    update_timestep = 2  # update policy every n epoches
-    K_epochs = 2  # update policy for K epochs in one PPO update
+    decay_step_size = configs.decay_step_size
+    decay_ratio = configs.decay_ratio
+    grad_clamp = configs.grad_clamp
+    update_timestep = configs.update_freq  # update policy every n epoches
+    K_epochs = configs.k_epochs  # update policy for K epochs in one PPO update
 
-    eps_clip = 0.2  # clip parameter for PPO
-    gamma = 0.99  # discount factor
+    eps_clip = configs.eps_clip  # clip parameter for PPO
+    gamma = configs.gamma  # discount factor
+    acnet = configs.acnet
 
-    lr_actor = 0.0001*3  # learning rate for actor network
-    lr_critic = 0.00005*3  # learning rate for critic network
+    lr_actor = configs.lr_actor  # learning rate for actor network
+    lr_critic = configs.lr_critic  # learning rate for critic network
 
     ########################### Env Parameters ##########################
 
     envs = [ProgEnv(*pars) for _ in range(configs.num_envs)]
-    torch.manual_seed(configs.torch_seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(configs.torch_seed)
-    np.random.seed(configs.np_seed_train)
 
     batch_size = envs[0].action_space.n
 
-
-    test_env = ProgEnv(*pars) # gym.make(configs.env_id, patient=patient).unwrapped
+    test_env = ProgEnv(*pars)
 
     # state space dimension
     state_dim = envs[0].action_space.n * 3
-
     # action space dimension
     action_dim = envs[0].action_space.n
     env_name = 'ProgramEnv'
     print("training environment name : " + env_name)
-    ###################### logging ######################
-
-    #### log files for multiple runs are NOT overwritten
-
-    log_dir = "log/summary/"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    t = datetime.now().strftime("%Y%m%d-%H%M")
-    # summary_dir = log_dir + '/' + str(t) + "-num_env-" + str(num_env)
-    writer = SummaryWriter(log_dir=summary_dir)
-
-    #####################################################
-
-
-
-    #####################################################
-
-    ############# print all hyperparameters #############
-
-    print("--------------------------------------------------------------------------------------------")
-    print("Reward mode:" + configs.mode)
-    print("num of envs : " + str(num_env))
-    print("max training updating times : ", max_updates)
-    print("max timesteps per episode : ", max_ep_len)
-
-    # print("model saving frequency : " + str(save_model_freq) + " episodes")
-    print("log frequency : " + str(log_freq) + " episodes")
-    print("printing average reward over episodes in last : " + str(print_freq) + " episodes")
 
     print("--------------------------------------------------------------------------------------------")
 
     print("state space dimension : ", state_dim)
     print("action space dimension : ", action_dim)
+    print("penalty mode:" + configs.penalty_mode)
+    print("num of envs : " + str(num_env))
+    ###################### logging ######################
+
+    #### log files for multiple runs are NOT overwritten
+    writer = SummaryWriter(log_dir=summary_dir)
+    checkpoint_format = summary_dir + '/PPO-ProgramEnv-converge-model-{}.pth'.format(configs.filepath[8:-4])
+
+    print('summary save at: ', summary_dir)
+    print('model save as: ', checkpoint_format)
+
+    ############# print all hyperparameters #############
+
+    print("--------------------------------------------------------------------------------------------")
+    print('the actor and critic network: ', configs.acnet)
+
+    print("max training updating times : ", max_updates)
+    print("log frequency : " + str(log_freq) + " episodes")
+    print("printing average reward over episodes in last : " + str(print_freq) + " episodes")
+
 
     print("--------------------------------------------------------------------------------------------")
 
     print("Initializing a discrete action space policy")
 
     print("--------------------------------------------------------------------------------------------")
-    print("The initial explore rate : " + str(explore_eps) + " and initial exploit rate is : 1- " + str(explore_eps))
+    print("The upper limit for exploring rate : " + str(explore_upper_eps) + " and lower limir for exploit rate is : " + str(explore_lower_eps))
 
     print("PPO update frequency : " + str(update_timestep) + " episodes")
     print("PPO K epochs : ", K_epochs)
@@ -213,12 +125,11 @@ def train(summary_dir, pars):
         gamma,
         K_epochs,
         eps_clip,
-        has_continuous_action_space,
         num_env,
         device,
+        acnet,
         decay_step_size,
-        decay_ratio,
-        action_std)
+        decay_ratio)
 
     # ppo_agent.load(
     #     "PPO_pretrained/analysis/patient025_20220121-1603-m1-0.5-AI-0.8_PPO_gym_cancerCancerControl-v0_0_0.pth")
@@ -246,12 +157,9 @@ def train(summary_dir, pars):
             ep_rewards[i] = []
             ep_dones[i] = []
             flag_step[i] = 0
-            # act_list = [0, 1, 8, 12, 20, 45, 56, 38, 51, 27, 33, 5, 2, 4, 59, 29,
-            #             36, 17, 24, 54, 48, 42, 40, 46, 34, 10, 7, 15, 22, 28, 52,
-            #             58, 55, 43, 61, 49, 31, 19, 37, 25, 62, 63, 65, 64, 66]
             while i_step < batch_size:
                 num_episods[i] += 1
-                eps = max(- max(i_update - 10000, 0) * (explore_eps - 0.5) / 10000 + explore_eps, 0.5)
+                eps = max(- max(i_update - exploit_init_step, 0) * (explore_upper_eps - explore_lower_eps) / exploit_init_step + explore_upper_eps, explore_lower_eps)
                 determine = np.random.choice(2, p=[1 - eps, eps])  # explore epsilon
                 _, fea, _, mask, weights = env.reset()
                 while True:
@@ -261,18 +169,16 @@ def train(summary_dir, pars):
                     ppo_agent.buffers[i].masks.append(mask_tensor)
                     ppo_agent.buffers[i].weights.append(weights_tensor)
                     state_tensor, action, action_logprob = ppo_agent.select_action(fea, mask, weights_tensor) \
-                        if determine else ppo_agent.greedy_select_action(fea, mask, weights_tensor)  # state_tensor is the tensor of current state
+                        if determine else ppo_agent.greedy_select_action(fea, mask, weights_tensor)
                     ppo_agent.buffers[i].states.append(state_tensor)
                     ppo_agent.buffers[i].actions.append(action)
                     ppo_agent.buffers[i].logprobs.append(action_logprob)
-                    # action =act_list[i_step - 1]
                     _, fea, reward, done, _, mask, weights, time, _ = env.step(action)
 
                     # saving reward and is_terminals
                     ppo_agent.buffers[i].rewards.append(reward)
                     ppo_agent.buffers[i].is_terminals.append(done)
 
-                    # print(action)
                     ep_rewards[i].append(reward)
                     ep_dones[i].append(done)
                     i_step += 1
@@ -287,20 +193,16 @@ def train(summary_dir, pars):
         if i_update % update_timestep == 0:
             loss = ppo_agent.update(decayflag=configs.decayflag, grad_clamp=grad_clamp)
 
-            # log in logging file
-            # if i_update % log_freq == 0:
-            print("steps:{} \t\t rewards:{}".format(i_update, np.round(mean_rewards_all_env, 3)))
+            print("Epochs:{} \t\t rewards:{}".format(i_update, np.round(mean_rewards_all_env, 3)))
             writer.add_scalar('VLoss', loss, i_update)
         writer.add_scalar("Reward/train", mean_rewards_all_env, i_update)
 
         if i_update % eval_interval == 0:
-            # rewards, survivalMonth, actions, states, colors = evaluate(test_env, ppo_agent.policy_old, eval_times)
             g_rewards, rewardSeq, ActionSeq, ActSeq, ModeSeq, TimeSeq = greedy_evaluate(test_env, ppo_agent.policy_old)
-            # writer.add_scalar("Reward/evaluate", rewards, i_update)
             writer.add_scalar("Reward/greedy_evaluate", g_rewards, i_update)
-            torch.save(ppo_agent.policy_old.state_dict(),summary_dir + '/PPO-ProgramEnv-converge-model-{}.pth'.format(configs.filepath[2:-3]))
-            print(" Test Total reward:{} \n Test rewards List:{} \n Test Actions:{} \n Test Acts:{} \n Test Modes: {} \n Test Times:{}".format(np.round(g_rewards, 3),rewardSeq, ActionSeq, ActSeq,ModeSeq, TimeSeq))
-        #
+            torch.save(ppo_agent.policy_old.state_dict(), checkpoint_format)
+            print(" Test Total reward:{} \n Test rewards List:{} \n Test Actions:{} \n Test Acts:{} \n Test Modes: {} \n Test Times:{}".format(np.round(g_rewards, 3), rewardSeq, ActionSeq, ActSeq,ModeSeq, TimeSeq))
+
     # print total training time
     print("============================================================================================")
     end_time = datetime.now().replace(microsecond=0)
@@ -312,12 +214,12 @@ def train(summary_dir, pars):
 
 if __name__ == '__main__':
     crt_time = datetime.now().strftime("%Y%m%d-%H%M")
-    summary_dir = os.path.join("log", 'summary', str(crt_time))
+    summary_dir = os.path.join("../log", configs.acnet + '_summary', str(crt_time))
     if not os.path.exists(summary_dir):
         os.makedirs(summary_dir)
     total1 = time.time()
     pars = (
-        configs.filepath, configs.Target_T, configs.price_renew, configs.price_non, configs.penalty0, configs.penalty1, configs.mode, configs.ppo)
+        configs.filepath, configs.Target_T, configs.price_renew, configs.price_non, configs.penalty0, configs.penalty1, configs.penalty_mode, configs.acnet)
     train(summary_dir, pars)
 
 

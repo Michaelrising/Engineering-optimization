@@ -1,31 +1,14 @@
 from utils import *
-from models.acnet import ActorCritic
+from Codes.gnn_models.acnet import ActorCritic
 from ProgramEnv import ProgEnv
 from copy import deepcopy
 import torch
-import time
 import torch.nn as nn
 import numpy as np
-from params import configs
-from torch.utils.tensorboard import SummaryWriter
-import os
-from datetime import datetime
+from gnn_params import configs
 from scipy.stats import bernoulli
 import torchcontrib
 device = torch.device(configs.device)
-
-
-def permute_rows(x):
-    ix_i = np.tile(np.arange(x.shape[0]), (x.shape[1], 1)).T
-    ix_j = np.random.sample(x.shape).argsort(axis=1)
-    return x[ix_i, ix_j]
-
-
-def uni_instance_gen(n_j, n_m, low, high): # data generator including the duration and the modes
-    times = np.random.randint(low=low, high=high, size=(n_j, n_m))
-    modes = np.expand_dims(np.arange(1, n_m+1), axis=0).repeat(repeats=n_j, axis=0)
-    modes = permute_rows(modes)
-    return times, modes
 
 
 class Memory:
@@ -52,7 +35,8 @@ class Memory:
 
 class PPO:
     def __init__(self,
-                 lr,
+                 lr_actor,
+                 lr_critic,
                  gamma,
                  k_epochs,
                  eps_clip,
@@ -66,7 +50,8 @@ class PPO:
                  num_mlp_layers_critic,
                  hidden_dim_critic,
                  ):
-        self.lr = lr
+        self.lr_actor = lr_actor
+        self.lr_critic =lr_critic
         self.gamma = gamma
         self.eps_clip = eps_clip
         self.k_epochs = k_epochs
@@ -87,11 +72,11 @@ class PPO:
         self.policy_old.load_state_dict(self.policy.state_dict())
         self.policy_opt = deepcopy(self.policy)
         self.policy_opt.load_state_dict(self.policy.state_dict())
-        # self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
+
         self.optimizer = torch.optim.Adam([
-            {'params': self.policy.actor.parameters(), 'lr': 3 * lr},
-            {'params': self.policy.critic.parameters(), 'lr': lr},
-            {'params': self.policy.feature_extract.parameters(), 'lr': lr}
+            {'params': self.policy.actor.parameters(), 'lr': lr_actor},
+            {'params': self.policy.critic.parameters(), 'lr': lr_critic},
+            {'params': self.policy.feature_extract.parameters(), 'lr': lr_actor}
         ])
         self.swa = torchcontrib.optim.SWA(self.optimizer, swa_start=100, swa_freq=5)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
@@ -288,7 +273,7 @@ def memory_append(memory,device, adj, fea, candidate, mask, action = None, rewar
         memory.done_mb.append(done)
 
 
-def greedy(steps,max_steps, eps):
+def greedy(steps, max_steps, eps):
     # reward_array_mask = sum(np.array(self.eval_reward, dtype=np.float) >= self.max_episode_steps)
     # eps = 1 / self.eval_reward.maxlen * reward_array_mask
     # mask = bool(reward_array_mask > 2 and (self.steps > self.eval_reward.maxlen * self.eval_interval))

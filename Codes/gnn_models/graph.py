@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.mlp import MLP
+from Codes.gnn_models.mlp import MLP
 
 
 class GraphCNN(nn.Module):

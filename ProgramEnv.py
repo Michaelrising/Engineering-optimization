@@ -1,19 +1,14 @@
 from ActConstraints import Constraints, ReadInfo
 import numpy as np
-import gym
 from gym import spaces
-from collections import deque
-import pandas as pd
-from gym.utils import EzPickle
-from params import configs
-from tool import permissibleLeftShift
 from copy import deepcopy
 d_ba = 10
 
+
 class ProgEnv(Constraints, ReadInfo):
-    def __init__(self, filepath, T_target=16, price_renew=5, price_non=0.5, penalty0=3, penalty1=3, mode='all', ppo='linear'):
+    def __init__(self, filepath, T_target=16, price_renew=5, price_non=0.5, penalty0=3, penalty1=3, penalty_mode='all', acnet='mlp'):
         super().__init__(filepath)
-        self.ppo = ppo
+        self.acnet = acnet
         self.steps = 0
         self.action_num = sum(self.Activity_mode_Num)
         self.action_space = spaces.Discrete(self.action_num)
@@ -48,7 +43,7 @@ class ProgEnv(Constraints, ReadInfo):
         self.not_feasible_history = 0
         self.which_step_infeasible = 0
         self.past_feasible_acts = np.zeros(self.action_space.n)
-        self.mode = mode
+        self.penalty_mode = penalty_mode
         self.max_potential = 0
         # self.actionPairs = []
 
@@ -280,17 +275,17 @@ class ProgEnv(Constraints, ReadInfo):
 
         potential1 = self.potential(self.past_feasible_acts)
         reward += potential1 - potential0
-        if self.mode == 'early':
+        if self.penalty_mode == 'early':
             reward += - 1 * time_Penalty
-        elif self.mode == 'resource0':
+        elif self.penalty_mode == 'resource0':
             reward += - 1 * renew_Penalty - 1 * nonrenew_Penalty
-        elif self.mode == 'resource1':
+        elif self.penalty_mode == 'resource1':
             reward += - 1 * renew_Penalty
-        elif self.mode == 'resource2':
+        elif self.penalty_mode == 'resource2':
             reward += - 1 * nonrenew_Penalty
-        elif self.mode == 'each':
+        elif self.penalty_mode == 'each':
             reward += - 1 * duration_Penalty
-        elif self.mode == 'early+each':
+        elif self.penalty_mode == 'early+each':
             reward += - 1 * duration_Penalty - 1 * time_Penalty
         else:
             reward += - 1 * time_Penalty - 1 * duration_Penalty - 1 * renew_Penalty - 1 * nonrenew_Penalty
@@ -304,10 +299,13 @@ class ProgEnv(Constraints, ReadInfo):
                 reward += self.penalty_coeff1 * diff_T
             reward -= self.not_feasible_history * 50
 
-        if self.ppo == 'linear':
-            fea = np.concatenate((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)) # time_urgency_index
-        else:
+        if self.acnet == 'mlp':
+            fea = np.concatenate((self.actStatus, self.action_feasibleMask, self.time_feasibleMask))
+        elif self.acnet == 'gnn':
             fea = np.vstack((self.actStatus, self.action_feasibleMask,   self.time_feasibleMask)).T
+        else:
+            fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
+            fea = fea[np.newaxis, np.newaxis, :, :]
         return self.stateGraph, fea, reward, self.done, self.candidate, return_mask, feasible_weights,  self.crtTime, {'time': timeFeasible, 'activity':actionFeasible, 'renew': RenewFeasible, 'nonrenew': nonRenewFeasible}
 
     def reset(self):
@@ -327,7 +325,6 @@ class ProgEnv(Constraints, ReadInfo):
         self.resetStateGraph()
         self.logicGraph1[1, 0] = 1
         self.pastMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
-        # self.pastMask[-1] = True
         self.action_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
         self.time_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
         self.action_feasibleMask[0] = True # time 0 only activity 0 is feasible
@@ -345,11 +342,13 @@ class ProgEnv(Constraints, ReadInfo):
         self.past_feasible_acts = np.zeros(self.action_space.n)
         feasible_weights = np.full(shape=self.action_space.n, fill_value=0, dtype=int)
         feasible_weights[0] = 1
-        # fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
         return_mask = ~self.feasiblemask
         self.max_potential = 0
-        if self.ppo == 'linear':
+        if self.acnet == 'mlp':
             fea = np.concatenate((self.actStatus, self.action_feasibleMask, self.time_feasibleMask))
+        elif self.acnet == 'gnn':
+            fea = np.vstack((self.actStatus, self.action_feasibleMask,   self.time_feasibleMask)).T
         else:
             fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
+            fea = fea[np.newaxis, np.newaxis, :, :]
         return self.stateGraph, fea, self.candidate, return_mask, feasible_weights

@@ -1,11 +1,9 @@
 import torch.nn as nn
-from models.mlp import MLPActor
-from models.mlp import MLPCritic
+from Codes.gnn_models.mlp import MLPActor
+from Codes.gnn_models.mlp import MLPCritic
 import torch.nn.functional as F
-from models.graph import GraphCNN
+from Codes.gnn_models.graph import GraphCNN
 import torch
-from torch.distributions import MultivariateNormal
-from torch.distributions import Categorical
 
 
 class ActorCritic(nn.Module):
