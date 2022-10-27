@@ -24,7 +24,7 @@ parser.add_argument('--acnet', type=str, default='gnn') # mlp, cnn or gnn
 parser.add_argument('--input_dim_gnn', type=int, default=3)
 ## For GNN ONLY, useless for main1
 parser.add_argument('--num_layers', type=int, default=4, help='No. of layers of feature extraction GNN including input layer')
-parser.add_argument('--neighbor_pooling_type', type=str, default='sum', help='neighbour pooling type')
+parser.add_argument('--neighbor_pooling_type', type=str, default='average', help='neighbour pooling type')
 parser.add_argument('--graph_pool_type', type=str, default='average', help='graph pooling type')
 parser.add_argument('--hidden_dim', type=int, default=128, help='hidden dim of MLP in fea extract GNN')
 parser.add_argument('--num_mlp_layers_feature_extract', type=int, default=2, help='No. of layers of MLP in fea extract GNN')

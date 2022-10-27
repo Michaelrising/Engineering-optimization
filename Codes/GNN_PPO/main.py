@@ -101,10 +101,12 @@ def main(summary_dir, pars):
                 else:
                     return select_action(pi, candidate,  memory)
             adj, fea, candidate, mask, _ = env.reset()
+            D_t = np.diag(np.power(np.array(adj.sum(1)), -0.5).flatten(), 0)
+            adj_norm = adj.dot(D_t).transpose().dot(D_t).todense()
             ep_rewards[i] = 0
             while True:
                 fea_tensor = torch.from_numpy(np.copy(fea)).to(device).float()
-                adj_tensor = torch.from_numpy(np.copy(adj)).to(device).to_sparse().float()
+                adj_tensor = torch.from_numpy(np.copy(adj_norm)).to(device).to_sparse().float()
                 candidate_tensor = torch.from_numpy(np.copy(candidate)).to(device).float()
                 mask_tensor = torch.from_numpy(np.copy(mask)).to(device)
                 memories[i].mask_mb.append(mask_tensor)
@@ -117,7 +119,7 @@ def main(summary_dir, pars):
                                            mask=mask_tensor.unsqueeze(0))
 
                     action = ACT(pi, candidate, action_choice, memories[i])
-                adj, fea, reward, done, candidate, mask, _, _, _ = env.step(action)
+                _, fea, reward, done, candidate, mask, _, _, _ = env.step(action)
                 ep_rewards[i] += reward
                 memory_append(memories[i], device, adj, fea, candidate, mask, action, reward, done)
                 if env.done:

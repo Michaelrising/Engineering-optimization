@@ -65,7 +65,7 @@ class GraphCNN(nn.Module):
                 padded_nei,
                 adj):
 
-        x_concat = x # self.f1(x.float())
+        x_concat = x
         graph_pool = graph_pool
 
         if self.neighbor_pooling_type == "max":
