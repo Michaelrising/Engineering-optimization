@@ -61,9 +61,14 @@ def train(summary_dir, pars):
     test_env = ProgEnv(*pars)
 
     # state space dimension
-    state_dim = envs[0].action_space.n * 3
-    # action space dimension
-    action_dim = envs[0].action_space.n
+    if configs.acnet == 'mlp':
+        state_dim = envs[0].action_space.n * 3
+        # action space dimension
+        action_dim = envs[0].action_space.n
+    else:
+        state_dim = envs[0].action_space.n
+        # action space dimension
+        action_dim = envs[0].action_space.n
     env_name = 'ProgramEnv'
     print("training environment name : " + env_name)
 

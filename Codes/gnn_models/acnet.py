@@ -21,9 +21,6 @@ class ActorCritic(nn.Module):
                  device
                  ):
         super(ActorCritic, self).__init__()
-        # self.n_j = n_j
-        # self.n_m = n_m
-        # self.n_ops_perjob = n_m
         self.device = device
 
         self.feature_extract = GraphCNN(num_layers=num_layers,

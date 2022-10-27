@@ -22,6 +22,7 @@ class ProgEnv(Constraints, ReadInfo):
         self.activities = list(self.SsLimit.keys()) # string
         self.done = False
         self.stateGraph = np.zeros((self.action_space.n, self.action_space.n))# np.ones((self.action_space.n, self.action_space.n)) * (-np.inf) # non-direction graph
+        self.return_stateGraph = self.stateGraph
         self.actGraph = np.zeros((self.action_space.n, self.action_space.n))
         self.logicGraph1 = np.zeros((len(self.Activity_mode_Num), len(self.Activity_mode_Num))) # 7 * 7
         self.logicGraph2 = np.zeros((len(self.Activity_mode_Num), len(self.Activity_mode_Num)))
@@ -306,7 +307,8 @@ class ProgEnv(Constraints, ReadInfo):
         else:
             fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
             fea = fea[np.newaxis, np.newaxis, :, :]
-        return self.stateGraph, fea, reward, self.done, self.candidate, return_mask, feasible_weights,  self.crtTime, {'time': timeFeasible, 'activity':actionFeasible, 'renew': RenewFeasible, 'nonrenew': nonRenewFeasible}
+
+        return self.return_stateGraph, fea, reward, self.done, self.candidate, return_mask, feasible_weights,  self.crtTime, {'time': timeFeasible, 'activity':actionFeasible, 'renew': RenewFeasible, 'nonrenew': nonRenewFeasible}
 
     def reset(self):
         self.resetResource()
@@ -351,4 +353,5 @@ class ProgEnv(Constraints, ReadInfo):
         else:
             fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
             fea = fea[np.newaxis, np.newaxis, :, :]
-        return self.stateGraph, fea, self.candidate, return_mask, feasible_weights
+        self.return_stateGraph = self.stateGraph + np.diag(np.ones(self.action_space.n))
+        return self.return_stateGraph, fea, self.candidate, return_mask, feasible_weights

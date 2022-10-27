@@ -53,16 +53,18 @@ class CNN_Actor(nn.Module):
         super(CNN_Actor, self).__init__()
 
         self.device = device
+        self.conv1d = nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3))
         self.actor = nn.Sequential(
-                nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3)),
+                nn.Linear(state_dim, 64),
                 nn.LeakyReLU(),
-                nn.Linear(1, 64),
+                nn.Linear(64, 128),
                 nn.LeakyReLU(),
-                nn.Linear(64, 1),
+                nn.Linear(128, action_dim)
             )
 
     def forward(self, state, weights):
-        candidate_scores = self.actor(state)
+        state = self.conv1d(state)
+        candidate_scores = self.actor(state.squeeze())
         # weights_reshape = weights.reshape(candidate_scores.size())
         # candidate_scores = torch.mul(candidate_scores, weights_reshape)
 
@@ -75,19 +77,18 @@ class CNN_Critic(nn.Module):
 
         self.device = device
         # critic
-        self.critic0 = nn.Sequential(
-            nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3)),
+        self.conv1d = nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3))
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, 64),
             nn.LeakyReLU(),
-            nn.Linear(1, 64),
+            nn.Linear(64, 128),
             nn.LeakyReLU(),
-            nn.Linear(64, 1),
-            nn.LeakyReLU(),
+            nn.Linear(128, 1)
         )
-        self.critic1 = nn.Linear(action_dim, 1)
 
     def forward(self, state):
-        score = self.critic0(state)
-        score = self.critic1(score.squeeze())
+        score = self.conv1d(state)
+        score = self.critic(score.squeeze())
         return score.squeeze()
 
 
