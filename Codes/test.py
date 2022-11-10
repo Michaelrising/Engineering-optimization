@@ -2,7 +2,7 @@ from PPO import *
 import torch
 from params import configs
 import numpy as np
-from ProgramEnv import ProgEnv
+from Codes.ProgramEnv import ProgEnv
 
 def greedy_test(modelPath, pars, device):
     if torch.cuda.is_available():
