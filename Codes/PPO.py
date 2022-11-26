@@ -13,7 +13,6 @@ class RolloutBuffer:
         self.rewards = []
         self.is_terminals = []
         self.masks = []
-        self.weights = []
 
     def clear(self):
         del self.actions[:]
@@ -22,7 +21,6 @@ class RolloutBuffer:
         del self.rewards[:]
         del self.is_terminals[:]
         del self.masks[:]
-        del self.weights[:]
 
 ################################## PPO Policy ##################################
 
@@ -57,23 +55,22 @@ class PPO:
         self.MseLoss = nn.MSELoss()
 
 
-    def select_action(self, state, mask, weights):
+    def select_action(self, state, mask):
         with torch.no_grad():
-            state = torch.FloatTensor(state).to(self.device)
-            action, action_logprob = self.policy_old.act(state, mask, weights)
+            # state = torch.FloatTensor(state).to(self.device)
+            action, action_logprob = self.policy_old.act(state, mask)
 
-            return state, action.item(), action_logprob
+            return  action.item(), action_logprob
 
-    def greedy_select_action(self, state, mask, weights):
+    def greedy_select_action(self, state, mask):
         with torch.no_grad():
-            state = torch.FloatTensor(state).to(self.device)
+            # state = torch.FloatTensor(state).to(self.device)
             try:
-                action, action_logprob = self.policy_old.act_exploit(state, mask, weights)
+                action, action_logprob = self.policy_old.act_exploit(state, mask)
             except ValueError:
-                print(weights)
                 print(mask)
 
-            return state, action.item(), action_logprob
+            return  action.item(), action_logprob
 
     def update(self, decayflag, grad_clamp=None):
         rewards_all_envs = []
@@ -101,14 +98,14 @@ class PPO:
             old_actions = torch.squeeze(torch.tensor(self.buffers[i].actions)).detach().to(self.device)
             old_logprobs = torch.squeeze(torch.stack(self.buffers[i].logprobs, dim=0)).detach().to(self.device)
             old_masks = torch.squeeze(torch.stack(self.buffers[i].masks, dim=0)).detach().to(self.device)
-            old_weights = torch.squeeze(torch.stack(self.buffers[i].weights, dim=0)).detach().to(self.device)
+            # old_weights = torch.squeeze(torch.stack(self.buffers[i].weights, dim=0)).detach().to(self.device)
 
             rewards_all_envs.append(rewards)
             old_states_all_envs.append(old_states)
             old_actions_all_envs.append(old_actions)
             old_logprobs_all_envs.append(old_logprobs)
             old_masks_all_envs.append(old_masks)
-            old_weights_all_envs.append(old_weights)
+            # old_weights_all_envs.append(old_weights)
 
         # Optimize policy for K epochs
         VLoss = 0
@@ -120,8 +117,7 @@ class PPO:
                 # Evaluating old actions and values
                 logprobs, state_values, dist_entropy = self.policy.evaluate(old_states_all_envs[i],
                                                                             old_actions_all_envs[i],
-                                                                            old_masks_all_envs[i],
-                                                                            old_weights_all_envs[i])
+                                                                            old_masks_all_envs[i])
 
                 # match state_values tensor dimensions with rewards tensor
                 state_values = torch.squeeze(state_values)
@@ -136,7 +132,7 @@ class PPO:
 
                 # final loss of clipped objective PPO
                 v_loss = self.MseLoss(state_values, rewards_all_envs[i])
-                loss = -torch.min(surr1, surr2) + 0.5 * v_loss - 0.01 * dist_entropy
+                loss = -torch.min(surr1, surr2) - 0.01 * dist_entropy  + 0.5 * v_loss
                 loss_sum += loss.mean()
                 vloss_sum += v_loss.mean()
 

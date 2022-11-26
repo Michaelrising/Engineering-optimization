@@ -10,16 +10,16 @@ class MLP_Actor(nn.Module):
 
         self.device = device
         self.actor = nn.Sequential(
-                nn.Linear(state_dim, 128),
+                nn.Linear(state_dim, 256),
                 nn.LeakyReLU(),
-                nn.Linear(128, 256),
+                nn.Linear(256, 512),
                 nn.LeakyReLU(),
-                nn.Linear(256, 64),
+                nn.Linear(512, 64),
                 nn.LeakyReLU(),
                 nn.Linear(64, action_dim),
             )
 
-    def forward(self, state, weights):
+    def forward(self, state):
         candidate_scores = self.actor(state)
         # weights_reshape = weights.reshape(candidate_scores.size())
         # candidate_scores = torch.mul(candidate_scores, weights_reshape)
@@ -34,11 +34,11 @@ class MLP_Critic(nn.Module):
         self.device = device
         # critic
         self.critic = nn.Sequential(
-            nn.Linear(state_dim, 128),
+            nn.Linear(state_dim, 256),
             nn.LeakyReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(256, 512),
             nn.LeakyReLU(),
-            nn.Linear(256, 64),
+            nn.Linear(512, 64),
             nn.LeakyReLU(),
             nn.Linear(64, 1),
         )
@@ -55,14 +55,14 @@ class CNN_Actor(nn.Module):
         self.device = device
         self.conv1d = nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3))
         self.actor = nn.Sequential(
-                nn.Linear(state_dim, 64),
-                nn.LeakyReLU(),
-                nn.Linear(64, 128),
+                # nn.Linear(state_dim, 64),
+                # nn.LeakyReLU(),
+                nn.Linear(state_dim, 128),
                 nn.LeakyReLU(),
                 nn.Linear(128, action_dim)
             )
 
-    def forward(self, state, weights):
+    def forward(self, state):
         state = self.conv1d(state)
         candidate_scores = self.actor(state.squeeze())
         # weights_reshape = weights.reshape(candidate_scores.size())
@@ -79,9 +79,9 @@ class CNN_Critic(nn.Module):
         # critic
         self.conv1d = nn.Conv1d(in_channels=1, out_channels=1, kernel_size=(1, 3))
         self.critic = nn.Sequential(
-            nn.Linear(state_dim, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64, 128),
+            # nn.Linear(state_dim, 64),
+            # nn.LeakyReLU(),
+            nn.Linear(state_dim, 128),
             nn.LeakyReLU(),
             nn.Linear(128, 1)
         )
@@ -107,8 +107,8 @@ class ActorCritic(nn.Module):
     def forward(self):
         raise NotImplementedError
 
-    def act(self, state, mask, weights):
-        candidate_scores = self.actor(state, weights)
+    def act(self, state, mask):
+        candidate_scores = self.actor(state)
         mask_reshape = mask.reshape(candidate_scores.size())
         candidate_scores[mask_reshape] = float('-inf')
         action_probs = F.softmax(candidate_scores.reshape(1, -1), dim=1)
@@ -119,9 +119,9 @@ class ActorCritic(nn.Module):
 
         return action.detach(), action_logprob.detach()
 
-    def act_exploit(self, state, mask, weights):
+    def act_exploit(self, state, mask):
         with torch.no_grad():
-            candidate_scores = self.actor(state, weights)
+            candidate_scores = self.actor(state)
             mask_reshape = mask.reshape(candidate_scores.size())
             candidate_scores[mask_reshape] = float('-inf')
             action_probs = F.softmax(candidate_scores.reshape(1, -1), dim=1)
@@ -131,8 +131,8 @@ class ActorCritic(nn.Module):
             action_logprob = dist.log_prob(greedy_action)
         return greedy_action.detach(), action_logprob.detach()
 
-    def evaluate(self, state, action, mask, weights):
-        candidate_scores = self.actor(state, weights)
+    def evaluate(self, state, action, mask):
+        candidate_scores = self.actor(state)
         mask_reshape = mask.reshape(candidate_scores.size())
         candidate_scores[mask_reshape] = float('-inf')
         action_probs = F.softmax(candidate_scores, dim=1)

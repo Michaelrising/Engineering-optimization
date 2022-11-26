@@ -5,7 +5,7 @@
       <paths name="HKServer">
         <serverdata>
           <mappings>
-            <mapping deploy="/projects/RLProgram" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/projects/Engineering-optimization" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

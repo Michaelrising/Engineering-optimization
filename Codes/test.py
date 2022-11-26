@@ -3,10 +3,8 @@ import torch
 from params import configs
 import numpy as np
 from Codes.ProgramEnv import ProgEnv
-
+# CUDA_LAUNCH_BLOCKING=1
 def greedy_test(modelPath, pars, device):
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(configs.torch_seed)
     test_env = ProgEnv(*pars)
     state_dim = test_env.action_space.n * 2
     action_dim = test_env.action_space.n
@@ -73,9 +71,8 @@ def greedy_test(modelPath, pars, device):
 
 
 if __name__ == '__main__':
-    modelpath = ''
-    pars = (
-        configs.filepath, configs.Target_T, configs.price_renew, configs.price_non, configs.penalty0, configs.penalty1, configs.mode, configs.ppo)
+    modelpath = '../log/mlp_summary/20221027-1113/PPO-ProgramEnv-converge-model-Lot1.pth'
+    pars = configs.filepath, configs.Target_T, configs.price_renew, configs.price_non, configs.penalty0, configs.penalty1, configs.penalty_mode, configs.acnet
     device = configs.device
     epi_rewards, rewards, actions, ActSeq, ModeSeq, TimeSeq = greedy_test(modelpath, pars, device)
     print('================================================')

@@ -1,6 +1,8 @@
+import sys
+sys.path.append('/home/yitao/projects/Engineering-optimization/Codes')
 from PPO import *
 from utils import *
-from Codes.ProgramEnv import ProgEnv
+from ProgramEnv import *
 import torch
 import time
 from params import configs
@@ -15,7 +17,7 @@ def train(summary_dir, pars):
     device = configs.device
     print("============================================================================================")
     # set device to cpu or cuda
-    if torch.cuda.is_available() and device == 'cuda:0':
+    if torch.cuda.is_available() and (device == 'cuda:0' or device == 'cuda:1'):
         torch.cuda.empty_cache()
         print("Device set to : " + str(torch.cuda.get_device_name(device)))
     else:
@@ -31,7 +33,6 @@ def train(summary_dir, pars):
 
     print_freq = configs.print_freq  # print avg reward in the interval (in num updating steps)
     log_freq = configs.log_freq  # log avg reward in the interval (in num updating steps)
-    action_std = 0.6  # starting std for action distribution (Multivariate Normal)
     explore_upper_eps = configs.explore_upper_eps
     explore_lower_eps = configs.explore_lower_eps
     exploit_init_step = configs.exploit_init_step
@@ -56,7 +57,7 @@ def train(summary_dir, pars):
 
     envs = [ProgEnv(*pars) for _ in range(configs.num_envs)]
 
-    batch_size = envs[0].action_space.n
+    batch_size = 128
 
     test_env = ProgEnv(*pars)
 
@@ -154,7 +155,6 @@ def train(summary_dir, pars):
     num_episods = [0 for _ in range(num_env)]
     flag_step = [0 for _ in range(num_env)]
     # training loop
-    reward_record = -1000000
     for i_update in range(max_updates):
         for i, env in enumerate(envs):
             i_step = 1
@@ -163,22 +163,26 @@ def train(summary_dir, pars):
             ep_dones[i] = []
             flag_step[i] = 0
             while i_step < batch_size:
+                ts = [0,  1,  5,  21, 39, 9,  57, 13, 27, 51, 32, 44, 3,  42, 24, 7,  48, 60, 30, 36, 54, 17, 4,  11,  14,  18,  37,  52,  22,  28,  43,  34,  58,  40,  46,  55,  25,  61,  31,  49,  62,  64,  63,  65,  66]
                 num_episods[i] += 1
-                eps = max(- max(i_update - exploit_init_step, 0) * (explore_upper_eps - explore_lower_eps) / exploit_init_step + explore_upper_eps, explore_lower_eps)
+                eps = 0.1 # max(- max(i_update - exploit_init_step, 0) * (explore_upper_eps - explore_lower_eps) / 10e4 + explore_upper_eps, explore_lower_eps)
                 determine = np.random.choice(2, p=[1 - eps, eps])  # explore epsilon
-                _, fea, _, mask, weights = env.reset()
+                _, fea, _, mask = env.reset()
                 while True:
                     # select action with policy, with torch.no_grad()
                     mask_tensor = torch.from_numpy(np.copy(mask)).to(device)
-                    weights_tensor = torch.from_numpy(np.copy(weights)).to(device)
+                    state_tensor = torch.from_numpy(fea).float().to(device)
+
                     ppo_agent.buffers[i].masks.append(mask_tensor)
-                    ppo_agent.buffers[i].weights.append(weights_tensor)
-                    state_tensor, action, action_logprob = ppo_agent.select_action(fea, mask, weights_tensor) \
-                        if determine else ppo_agent.greedy_select_action(fea, mask, weights_tensor)
                     ppo_agent.buffers[i].states.append(state_tensor)
+
+                    action, action_logprob = ppo_agent.select_action(state_tensor, mask) \
+                        if determine else ppo_agent.greedy_select_action(state_tensor, mask)
+
                     ppo_agent.buffers[i].actions.append(action)
                     ppo_agent.buffers[i].logprobs.append(action_logprob)
-                    _, fea, reward, done, _, mask, weights, time, _ = env.step(action)
+                    action = ts[i_step-1]
+                    _, fea, reward, done, _, mask, time, _ = env.step(action)
 
                     # saving reward and is_terminals
                     ppo_agent.buffers[i].rewards.append(reward)
@@ -219,7 +223,7 @@ def train(summary_dir, pars):
 
 if __name__ == '__main__':
     crt_time = datetime.now().strftime("%Y%m%d-%H%M")
-    summary_dir = os.path.join("../log", configs.acnet + '_summary', str(crt_time))
+    summary_dir = os.path.join("../log", configs.acnet + '_summary', configs.filepath[8:-4] , str(crt_time))
     if not os.path.exists(summary_dir):
         os.makedirs(summary_dir)
     total1 = time.time()

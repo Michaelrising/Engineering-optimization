@@ -2,7 +2,7 @@ from ActConstraints import Constraints, ReadInfo
 import numpy as np
 from gym import spaces
 from copy import deepcopy
-d_ba = 10
+# d_ba = 10
 
 
 class ProgEnv(Constraints, ReadInfo):
@@ -46,6 +46,7 @@ class ProgEnv(Constraints, ReadInfo):
         self.past_feasible_acts = np.zeros(self.action_space.n)
         self.penalty_mode = penalty_mode
         self.max_potential = 0
+        self.nonFeasibleActivities = np.array([])
         # self.actionPairs = []
 
     def actionDetermine(self, action):
@@ -102,9 +103,9 @@ class ProgEnv(Constraints, ReadInfo):
         # update the activity status
         # update the activity status, for the done activity set to 1,
         self.actStatus[action] = 1
-        for act in action_limit:
-            if act != action:
-                self.actStatus[act] = -1
+        # for act in action_limit:
+        #     if act != action:
+        #         self.actStatus[act] = -1
 
     def startTimeDetermine(self, graph): # fix !!!!!!
         assert len(self.timeSeq) + 1 == graph.shape[0]
@@ -127,10 +128,10 @@ class ProgEnv(Constraints, ReadInfo):
         # the percentage that the project is complicated is set as the potential function
         # which is to decide the reward
         actions_scores = sum(past_feasible_acts)
-        projectStatus = actions_scores/len(self.activities) * 2000
+        projectStatus = actions_scores/len(self.activities) * 500 # 2000
         if projectStatus > self.max_potential:
             self.max_potential = projectStatus
-        return self.max_potential
+        return projectStatus #self.max_potential
 
     def feasibleDetermine(self):
         act_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
@@ -220,9 +221,9 @@ class ProgEnv(Constraints, ReadInfo):
         # penalty for resource used
         renew_Penalty = np.dot(diff_renewR, self.price_renewable_resource.reshape(-1))  # renew penalty cost1
         nonrenew_Penalty = np.dot(diff_NonrenewR * crt_duration,
-                                  self.price_nonrenewable_resource.reshape(-1))  # nonrenew penalty cost2
+                                  self.price_nonrenewable_resource.reshape(-1)) # nonrenew penalty cost2
         duration_Penalty = diff_duration * 1
-        time_Penalty = 1 * (self.crtTime - g_time)  # g_time means the earliest start time for each activity
+        time_Penalty = 0 #.1 * (self.crtTime - g_time)  # g_time means the earliest start time for each activity
         return renew_Penalty, nonrenew_Penalty, duration_Penalty, time_Penalty
 
     def step(self, action):
@@ -247,12 +248,14 @@ class ProgEnv(Constraints, ReadInfo):
         self.BuildactGraph(action)
         self.updateActStatus(action, mask_limit)
 
-        feasibleActivity, feasible_weights, time_urgency_index = self.feasibleDetermine()
-
-        return_mask = ~self.action_feasibleMask
+        feasibleActivity, _, time_urgency_index = self.feasibleDetermine()
         self.steps += 1
+        return_mask = ~self.action_feasibleMask
+        if action ==  1:
+            return_mask = np.full(shape=self.action_space.n, fill_value=1, dtype=bool)
+            return_mask[5] = False
+
         self.done = bool(self.steps == len(self.Activity_mode_Num))
-        reward = 0
 
         renew_Penalty, nonrenew_Penalty, duration_Penalty, time_Penalty = self.resource_time_penalty(greedy_time)
 
@@ -263,16 +266,26 @@ class ProgEnv(Constraints, ReadInfo):
         self.renewFeasible.append(not RenewFeasible)
         self.not_feasible_history += (not timeFeasible) \
                                + (not actionFeasible) \
-                               + (not nonRenewFeasible)\
+                               + (not nonRenewFeasible) \
                                + (not RenewFeasible)
 
         if timeFeasible and actionFeasible and nonRenewFeasible and RenewFeasible:
             self.past_feasible_acts[action] = 1
         else:
             self.past_feasible_acts[action] = -1
+        self.nonFeasibleActivities = np.append(self.nonFeasibleActivities, np.where(time_urgency_index < 0)[0])
+        if action in  self.nonFeasibleActivities:
+            inds = np.where(self.nonFeasibleActivities == action)
+            self.nonFeasibleActivities = np.delete(self.nonFeasibleActivities, inds)
 
+        reward = - self.nonFeasibleActivities.shape[0] * (500 / len(self.activities)) # \
+                               #  - ((not timeFeasible)
+                               # + (not actionFeasible)
+                               # + (not nonRenewFeasible)
+                               # + (not RenewFeasible)) * (500 / len(self.activities))
+        # after taking action, there may exist some activities that should tak earlier
         if self.crtTime > latest_time:
-            reward -= 50 * (self.crtTime - latest_time)**2
+            reward -= (self.crtTime - latest_time)*2  # **2
 
         potential1 = self.potential(self.past_feasible_acts)
         reward += potential1 - potential0
@@ -295,10 +308,10 @@ class ProgEnv(Constraints, ReadInfo):
             T = self.crtTime
             diff_T = self.T_target - T
             if diff_T >= 0:
-                reward += self.penalty_coeff0 * diff_T
+                reward += self.penalty_coeff0 * diff_T * 0.1
             else:
-                reward += self.penalty_coeff1 * diff_T
-            reward -= self.not_feasible_history * 50
+                reward += self.penalty_coeff1 * diff_T * 0.1
+            reward -= self.not_feasible_history * 2 # 50
 
         if self.acnet == 'mlp':
             fea = np.concatenate((self.actStatus, self.action_feasibleMask, self.time_feasibleMask))
@@ -308,7 +321,7 @@ class ProgEnv(Constraints, ReadInfo):
             fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
             fea = fea[np.newaxis, np.newaxis, :, :]
 
-        return self.return_stateGraph, fea, reward, self.done, self.candidate, return_mask, feasible_weights,  self.crtTime, {'time': timeFeasible, 'activity':actionFeasible, 'renew': RenewFeasible, 'nonrenew': nonRenewFeasible}
+        return self.return_stateGraph, fea, reward, self.done, self.candidate, return_mask,  self.crtTime, {'time': timeFeasible, 'activity':actionFeasible, 'renew': RenewFeasible, 'nonrenew': nonRenewFeasible}
 
     def reset(self):
         self.resetResource()
@@ -317,6 +330,7 @@ class ProgEnv(Constraints, ReadInfo):
         self.modeSeq = []
         self.timeSeq = []
         self.actionSeq = []
+        self.nonFeasibleActivities = np.array([])
         self.crtTime = 0
         self.lastTime = 0
         self.done = False
@@ -354,4 +368,4 @@ class ProgEnv(Constraints, ReadInfo):
             fea = np.vstack((self.actStatus, self.action_feasibleMask, self.time_feasibleMask)).T
             fea = fea[np.newaxis, np.newaxis, :, :]
         self.return_stateGraph = self.stateGraph + np.diag(np.ones(self.action_space.n))
-        return self.return_stateGraph, fea, self.candidate, return_mask, feasible_weights
+        return self.return_stateGraph, fea, self.candidate, return_mask

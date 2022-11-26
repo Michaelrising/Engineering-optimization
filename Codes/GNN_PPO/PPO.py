@@ -113,7 +113,7 @@ class PPO:
                 discounted_reward = reward + (self.gamma * discounted_reward)
                 rewards.insert(0, discounted_reward)
             rewards = torch.tensor(rewards, dtype=torch.float).to(device)
-            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+            # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
             rewards_all_env.append(rewards)
             adj_mb_t_all_env.append(aggr_obs(torch.stack(memories[i].adj_mb).to(device), n_tasks))
             fea_mb_t = torch.stack(memories[i].fea_mb).to(device)

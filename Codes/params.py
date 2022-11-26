@@ -2,7 +2,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Arguments for ppo_jssp')
 # args for device
-parser.add_argument('--device', type=str, default="cuda:0")
+parser.add_argument('--device', type=str, default="cuda:1")
 # args for env
 # Remenber if you wanna change the value of this setting, make sure you hv prior knowledge of the program
 parser.add_argument('--filepath', type=str, default=r'../Data/Lot1.sch', help='file path for the rules')
@@ -34,10 +34,10 @@ parser.add_argument('--num_mlp_layers_critic', type=int, default=2, help='No. of
 parser.add_argument('--hidden_dim_critic', type=int, default=32, help='hidden dim of MLP in critic')
 
 # args for PPO mostly paras set in main1, and here the paras are useless for main1
-parser.add_argument('--explore_upper_eps', type=float, default=0.8, help='The upper limit for exploring rate')
-parser.add_argument('--explore_lower_eps', type=float, default=0.5, help='The lower limit for exploring rate')
+parser.add_argument('--explore_upper_eps', type=float, default=0.9, help='The upper limit for exploring rate')
+parser.add_argument('--explore_lower_eps', type=float, default=0.2, help='The lower limit for exploring rate')
 
-parser.add_argument('--exploit_init_step', type=int, default=10000, help='the steps start decay explore rate')
+parser.add_argument('--exploit_init_step', type=int, default=1, help='the steps start decay explore rate')
 parser.add_argument('--num_envs', type=int, default=2, help='No. of envs for training') # original is 4
 parser.add_argument('--max_updates', type=int, default=100000, help='No. of episodes of each env for training')
 parser.add_argument('--update_freq', type=int, default=2, help='No. of epoch to update ppo')
@@ -45,14 +45,14 @@ parser.add_argument('--log_freq', type=int, default=2, help='Log frequency')
 parser.add_argument('--print_freq', type=int, default=2, help='Print results frequency')
 parser.add_argument('--eval_interval', type=int, default=50, help='Evaluation frequency (steps)')
 
-parser.add_argument('--grad_clamp', type=float, default=0.2, help='The clamp of gradient')
-parser.add_argument('--lr_actor', type=float, default=0.0001*3, help='lr for actor net')
-parser.add_argument('--lr_critic', type=float, default=0.00005*3, help='lr for critic net')
+parser.add_argument('--grad_clamp', type=float, default=1.0, help='The clamp of gradient')
+parser.add_argument('--lr_actor', type=float, default=0.0003, help='lr for actor net')
+parser.add_argument('--lr_critic', type=float, default=0.00015, help='lr for critic net')
 parser.add_argument('--decayflag', type=bool, default=False, help='lr decayflag')
 parser.add_argument('--decay_step_size', type=int, default=1000, help='decay_step_size')
 parser.add_argument('--decay_ratio', type=float, default=0.5, help='decay_ratio, e.g. 0.9, 0.95')
 parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
-parser.add_argument('--k_epochs', type=int, default=2, help='update policy for K epochs')
+parser.add_argument('--k_epochs', type=int, default=3, help='update policy for K epochs')
 parser.add_argument('--eps_clip', type=float, default=0.2, help='clip parameter for PPO')
 parser.add_argument('--vloss_coef', type=float, default=1, help='critic loss coefficient')
 parser.add_argument('--ploss_coef', type=float, default=0.5, help='policy loss coefficient')

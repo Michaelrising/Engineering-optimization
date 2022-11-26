@@ -20,7 +20,7 @@ def set_device(cuda=None):
 
 def greedy_evaluate(test_env, model):
     device = model.device
-    _, fea, _, mask,weights  = test_env.reset()
+    _, fea, _, mask  = test_env.reset()
     epi_rewards = 0
     actions = []
     times = []
@@ -33,10 +33,10 @@ def greedy_evaluate(test_env, model):
     step = 0
     while True:
         fea_tensor = torch.from_numpy(np.copy(fea)).to(device).float()
-        weights_tensor = torch.from_numpy(np.copy(weights)).to(device).float()
+        # weights_tensor = torch.from_numpy(np.copy(weights)).to(device).float()
         with torch.no_grad():
-            action, _ = model.act_exploit(fea_tensor, mask, weights_tensor)
-        _, fea, reward, done, _, mask, weights, time, feasible_info = test_env.step(action.item())
+            action, _ = model.act_exploit(fea_tensor, mask)
+        _, fea, reward, done, _, mask, time, feasible_info = test_env.step(action.item())
         epi_rewards += reward
         rewards.append(int(reward))
         actions.append(action.item())
