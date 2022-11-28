@@ -163,7 +163,7 @@ def train(summary_dir, pars):
             ep_dones[i] = []
             flag_step[i] = 0
             while i_step < batch_size:
-                ts = [0,  1,  5,  21, 39, 9,  57, 13, 27, 51, 32, 44, 3,  42, 24, 7,  48, 60, 30, 36, 54, 17, 4,  11,  14,  18,  37,  52,  22,  28,  43,  34,  58,  40,  46,  55,  25,  61,  31,  49,  62,  64,  63,  65,  66]
+                ts = [0,  1,  5,  12, 2,  27, 21, 53, 59, 51, 17, 35, 24, 29, 4,  39, 45, 7,  48, 42, 57, 55,  33,  9,   15,  22,  19,  61,  37,  28,  34,  40,  52,  31,  58,  11,  46,  62,  25,  49,  64,  43,  63,  65,  66]
                 num_episods[i] += 1
                 eps = 0.1 # max(- max(i_update - exploit_init_step, 0) * (explore_upper_eps - explore_lower_eps) / 10e4 + explore_upper_eps, explore_lower_eps)
                 determine = np.random.choice(2, p=[1 - eps, eps])  # explore epsilon

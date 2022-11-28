@@ -18,7 +18,7 @@ parser.add_argument('--penalty_mode', type=str, default='all', help='modes calcu
 # each: each activity's duration greedily(smallest)
 # early+each: consider start time and duration
 # if not specified or set as None or blank or any other strings, consider all the penalties
-parser.add_argument('--acnet', type=str, default='cnn') # mlp, cnn
+parser.add_argument('--acnet', type=str, default='mlp') # mlp, cnn
 # args for network
 # parser.add_argument('--input_dim_linear', type=int, default=28, help='number of dimension of raw node features')
 parser.add_argument('--input_dim_gnn', type=int, default=3)

@@ -131,16 +131,17 @@ class ProgEnv(Constraints, ReadInfo):
         projectStatus = actions_scores/len(self.activities) * 500 # 2000
         if projectStatus > self.max_potential:
             self.max_potential = projectStatus
-        return projectStatus #self.max_potential
+        return self.max_potential
 
     def feasibleDetermine(self):
         act_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
-        time_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=int)
+        time_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
         time_urgency_index = np.full(shape=self.action_space.n, fill_value=0, dtype=float)
         feasible_latest_time_array = np.zeros_like(self.time_feasibleMask)
         if self.done:
             return act_feasibleMask
         feasibleActivity = []
+        time_infeasibleActivity = []
 
         for act in self.actSeq:
             temp = np.where(self.logicGraph1[:, act] == 1)[0]
@@ -155,8 +156,8 @@ class ProgEnv(Constraints, ReadInfo):
 
         for i, act_mask in enumerate(act_feasibleMask):
             if act_mask:
-                time_feasibleMask[i] = 1
-                feasible_latest_time_array[i] = 10000
+                time_feasibleMask[i] = True
+                # feasible_latest_time_array[i] = 10000
                 time_urgency_index[i] = 10000
                 action_states_vec = self.stateGraph[:, i]
                 back_time_check_actions = np.where(action_states_vec < 0)[0]
@@ -167,18 +168,23 @@ class ProgEnv(Constraints, ReadInfo):
                     pos = pos[0].item()
                     back_action_start_time = self.timeSeq[int(pos)]
                     if back_action_start_time - self.crtTime >= action_states_vec[int(back_action)]:
-                        time_feasibleMask[i] = 1
-                        feasible_latest_time_array[i] = min(back_action_start_time - action_states_vec[int(back_action)], feasible_latest_time_array[i])
+                        time_feasibleMask[i] = True
+                        # feasible_latest_time_array[i] = min(back_action_start_time - action_states_vec[int(back_action)], feasible_latest_time_array[i])
                     else:
-                        time_feasibleMask[i] = -1
-                        feasible_latest_time_array[i] = 0.1
+                        time_feasibleMask[i] = False
+                        # feasible_latest_time_array[i] = 0.1
                     time_urgency_index[i] = min(- self.crtTime + back_action_start_time - action_states_vec[int(back_action)], time_urgency_index[i])
 
         time_urgency_index[np.where(time_urgency_index == 10000)[0]] = max(time_urgency_index[np.where(time_urgency_index != 10000)[0]]) + 1
+        for f_activity in feasibleActivity:
+            feasibleAction = sum(self.Activity_mode_Num[:(int(f_activity))]) + np.arange(self.Activity_mode_Num[f_activity])
+            time_fea_or_not = time_feasibleMask[feasibleAction]
+            if (time_fea_or_not == False).all():
+                time_infeasibleActivity.append(f_activity)
 
         self.action_feasibleMask = act_feasibleMask
         self.time_feasibleMask = time_feasibleMask
-        return feasibleActivity, feasible_latest_time_array, time_urgency_index
+        return feasibleActivity, time_infeasibleActivity, time_urgency_index
 
     def renew_time_feasibility(self, PastActGraph, PastLogicVec2, startTime):
         action_states_vec = self.stateGraph[:, int(self.actionSeq[-1])]
@@ -205,6 +211,7 @@ class ProgEnv(Constraints, ReadInfo):
                 break
             start_Time += 1
             RenewFeasible = self.Is_Renewable_Resource_Feasible(self.modeSeq, self.actSeq, self.timeSeq, start_Time)
+        start_Time = min(start_Time, latest_startTime)
         return RenewFeasible, time_Feasible, start_Time, greedy_startTime, latest_startTime
 
     def resource_time_penalty(self, g_time):
@@ -248,7 +255,7 @@ class ProgEnv(Constraints, ReadInfo):
         self.BuildactGraph(action)
         self.updateActStatus(action, mask_limit)
 
-        feasibleActivity, _, time_urgency_index = self.feasibleDetermine()
+        feasibleActivity, time_infeasibleActivity, time_urgency_index = self.feasibleDetermine()
         self.steps += 1
         return_mask = ~self.action_feasibleMask
         if action ==  1:
@@ -273,7 +280,7 @@ class ProgEnv(Constraints, ReadInfo):
             self.past_feasible_acts[action] = 1
         else:
             self.past_feasible_acts[action] = -1
-        self.nonFeasibleActivities = np.append(self.nonFeasibleActivities, np.where(time_urgency_index < 0)[0])
+        self.nonFeasibleActivities = np.append(self.nonFeasibleActivities, time_infeasibleActivity)
         if action in  self.nonFeasibleActivities:
             inds = np.where(self.nonFeasibleActivities == action)
             self.nonFeasibleActivities = np.delete(self.nonFeasibleActivities, inds)
