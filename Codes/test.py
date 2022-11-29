@@ -6,14 +6,21 @@ from Codes.ProgramEnv import ProgEnv
 # CUDA_LAUNCH_BLOCKING=1
 def greedy_test(modelPath, pars, device):
     test_env = ProgEnv(*pars)
-    state_dim = test_env.action_space.n * 2
-    action_dim = test_env.action_space.n
+    # state space dimension
+    if configs.acnet == 'mlp':
+        state_dim = test_env.action_space.n * 3
+        # action space dimension
+        action_dim = test_env.action_space.n
+    else:
+        state_dim = test_env.action_space.n
+        # action space dimension
+        action_dim = test_env.action_space.n
     # upload policy
     policy = ActorCritic(state_dim, action_dim, device).to(device)
     policy.load_state_dict(torch.load(modelPath))
     policy.eval()
 
-    _, fea, _, mask, weights  = test_env.reset()
+    _, fea, _, mask  = test_env.reset()
     epi_rewards = 0
     actions = []
     times = []
@@ -26,10 +33,10 @@ def greedy_test(modelPath, pars, device):
     step = 0
     while True:
         fea_tensor = torch.from_numpy(np.copy(fea)).to(device).float()
-        weights_tensor = torch.from_numpy(np.copy(weights)).to(device).float()
+        # weights_tensor = torch.from_numpy(np.copy(weights)).to(device).float()
         with torch.no_grad():
-            action, _ = policy.act_exploit(fea_tensor, mask, weights_tensor)
-        _, fea, reward, done, _, mask, weights, time, feasible_info = test_env.step(action.item())
+            action, _ = policy.act_exploit(fea_tensor, mask)
+        _, fea, reward, done, _, mask, time, feasible_info = test_env.step(action.item())
         epi_rewards += reward
         rewards.append(int(reward))
         actions.append(action.item())
@@ -71,7 +78,7 @@ def greedy_test(modelPath, pars, device):
 
 
 if __name__ == '__main__':
-    modelpath = '../log/mlp_summary/20221027-1113/PPO-ProgramEnv-converge-model-Lot1.pth'
+    modelpath = '../log/mlp_summary/Lot1/20221128-2116/PPO-ProgramEnv-converge-model-Lot1.pth'
     pars = configs.filepath, configs.Target_T, configs.price_renew, configs.price_non, configs.penalty0, configs.penalty1, configs.penalty_mode, configs.acnet
     device = configs.device
     epi_rewards, rewards, actions, ActSeq, ModeSeq, TimeSeq = greedy_test(modelpath, pars, device)
