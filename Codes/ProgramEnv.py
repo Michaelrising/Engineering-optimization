@@ -191,7 +191,7 @@ class ProgEnv(Constraints, ReadInfo):
         back_time_check_actions = np.where(action_states_vec < 0)[0]
         valid_back_time_check_actions = back_time_check_actions[np.isin(back_time_check_actions, self.actionSeq[:-1])]
         greedy_startTime, latest_startTime = self.startTimeDetermine(PastActGraph)
-        start_Time = max(startTime, greedy_startTime)
+        start_Time = greedy_startTime # max(startTime, greedy_startTime)
         time_Feasible = False
         RenewFeasible = self.Is_Renewable_Resource_Feasible(self.modeSeq, self.actSeq, self.timeSeq, start_Time)
         while start_Time <= latest_startTime:
@@ -230,7 +230,7 @@ class ProgEnv(Constraints, ReadInfo):
         nonrenew_Penalty = np.dot(diff_NonrenewR * crt_duration,
                                   self.price_nonrenewable_resource.reshape(-1)) # nonrenew penalty cost2
         duration_Penalty = diff_duration * 1
-        time_Penalty = 0 #.1 * (self.crtTime - g_time)  # g_time means the earliest start time for each activity
+        time_Penalty = 1 * (self.crtTime - g_time)  # g_time means the earliest start time for each activity
         return renew_Penalty, nonrenew_Penalty, duration_Penalty, time_Penalty
 
     def step(self, action):

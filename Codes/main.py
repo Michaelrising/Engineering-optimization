@@ -163,7 +163,7 @@ def train(summary_dir, pars):
             ep_dones[i] = []
             flag_step[i] = 0
             while i_step < batch_size:
-                ts = [0,  1,  5,  12, 2,  27, 21, 53, 59, 51, 17, 35, 24, 29, 4,  39, 45, 7,  48, 42, 57, 55,  33,  9,   15,  22,  19,  61,  37,  28,  34,  40,  52,  31,  58,  11,  46,  62,  25,  49,  64,  43,  63,  65,  66]
+                # ts = [0,  1,  5,  12, 2,  27, 21, 53, 59, 51, 17, 35, 24, 29, 4,  39, 45, 7,  48, 42, 57, 55,  33,  9,   15,  22,  19,  61,  37,  28,  34,  40,  52,  31,  58,  11,  46,  62,  25,  49,  64,  43,  63,  65,  66]
                 num_episods[i] += 1
                 eps = 0.1 # max(- max(i_update - exploit_init_step, 0) * (explore_upper_eps - explore_lower_eps) / 10e4 + explore_upper_eps, explore_lower_eps)
                 determine = np.random.choice(2, p=[1 - eps, eps])  # explore epsilon
@@ -181,7 +181,7 @@ def train(summary_dir, pars):
 
                     ppo_agent.buffers[i].actions.append(action)
                     ppo_agent.buffers[i].logprobs.append(action_logprob)
-                    action = ts[i_step-1]
+                    # action = ts[i_step-1]
                     _, fea, reward, done, _, mask, time, _ = env.step(action)
 
                     # saving reward and is_terminals
