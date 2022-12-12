@@ -16,7 +16,7 @@ def greedy_test(modelPath, pars, device):
         # action space dimension
         action_dim = test_env.action_space.n
     # upload policy
-    policy = ActorCritic(state_dim, action_dim, device).to(device)
+    policy = ActorCritic(state_dim, action_dim, device, acnet=configs.acnet).to(device)
     policy.load_state_dict(torch.load(modelPath))
     policy.eval()
 
@@ -78,7 +78,7 @@ def greedy_test(modelPath, pars, device):
 
 
 if __name__ == '__main__':
-    modelpath = '../log/mlp_summary/Lot1/20221128-2116/PPO-ProgramEnv-converge-model-Lot1.pth'
+    modelpath = '../log/cnn_summary/Lot1/20221128-2116/PPO-ProgramEnv-converge-model-Lot1.pth'
     pars = configs.filepath, configs.Target_T, configs.price_renew, configs.price_non, configs.penalty0, configs.penalty1, configs.penalty_mode, configs.acnet
     device = configs.device
     epi_rewards, rewards, actions, ActSeq, ModeSeq, TimeSeq = greedy_test(modelpath, pars, device)
