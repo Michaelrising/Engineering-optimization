@@ -2,7 +2,7 @@ from ActConstraints import Constraints, ReadInfo
 import numpy as np
 from gym import spaces
 from copy import deepcopy
-# d_ba = 10
+
 
 
 class ProgEnv(Constraints, ReadInfo):
@@ -28,26 +28,20 @@ class ProgEnv(Constraints, ReadInfo):
         self.logicGraph2 = np.zeros((len(self.Activity_mode_Num), len(self.Activity_mode_Num)))
         self.actStatus = np.zeros(self.action_space.n)
         self.actStatus[-1] = -1
-        self.timeStatus = np.zeros(self.action_space.n)
         self.candidate = np.arange(self.action_space.n)
         self.pastMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
         self.penalty_coeff0 = penalty0
         self.penalty_coeff1 = penalty1
-        self.lastTime = 0
         self.T_target = T_target
-        self.recStatus = np.zeros(self.action_space.n)
-        self.durStatus = np.zeros(self.action_space.n)
         self.timeFeasible = []
         self.nonRenewFeasible = []
         self.renewFeasible = []
         self.actFeasible = []
         self.not_feasible_history = 0
-        self.which_step_infeasible = 0
         self.past_feasible_acts = np.zeros(self.action_space.n)
         self.penalty_mode = penalty_mode
         self.max_potential = 0
         self.nonFeasibleActivities = np.array([])
-        # self.actionPairs = []
 
     def actionDetermine(self, action):
         # decide the action represents which activity and which mode
@@ -58,7 +52,6 @@ class ProgEnv(Constraints, ReadInfo):
                 if action == temp:
                     return int(activity), int(mode)
                 temp += 1
-
 
     def resetStateGraph(self):
         # initial graph for the whole state space is len(action) x len(action), so in the test is 13x13.
@@ -82,7 +75,6 @@ class ProgEnv(Constraints, ReadInfo):
         for mode in np.arange(1, self.Activity_mode_Num[int(last_activity)] + 1):
             pcol = sum(self.Activity_mode_Num[:(int(last_activity))]) + mode - 1
             self.stateGraph[eof_action, pcol] = 1
-            # self.actGraph[eof_action, pcol] = 0.5
 
     def BuildactGraph(self, action):
         # after one action is taken, the explicit activity and corresponding mode are determined,
@@ -103,9 +95,6 @@ class ProgEnv(Constraints, ReadInfo):
         # update the activity status
         # update the activity status, for the done activity set to 1,
         self.actStatus[action] = 1
-        # for act in action_limit:
-        #     if act != action:
-        #         self.actStatus[act] = -1
 
     def startTimeDetermine(self, graph): # fix !!!!!!
         assert len(self.timeSeq) + 1 == graph.shape[0]
@@ -137,7 +126,6 @@ class ProgEnv(Constraints, ReadInfo):
         act_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
         time_feasibleMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
         time_urgency_index = np.full(shape=self.action_space.n, fill_value=0, dtype=float)
-        feasible_latest_time_array = np.zeros_like(self.time_feasibleMask)
         if self.done:
             return act_feasibleMask
         feasibleActivity = []
@@ -157,7 +145,6 @@ class ProgEnv(Constraints, ReadInfo):
         for i, act_mask in enumerate(act_feasibleMask):
             if act_mask:
                 time_feasibleMask[i] = True
-                # feasible_latest_time_array[i] = 10000
                 time_urgency_index[i] = 10000
                 action_states_vec = self.stateGraph[:, i]
                 back_time_check_actions = np.where(action_states_vec < 0)[0]
@@ -169,10 +156,9 @@ class ProgEnv(Constraints, ReadInfo):
                     back_action_start_time = self.timeSeq[int(pos)]
                     if back_action_start_time - self.crtTime >= action_states_vec[int(back_action)]:
                         time_feasibleMask[i] = True
-                        # feasible_latest_time_array[i] = min(back_action_start_time - action_states_vec[int(back_action)], feasible_latest_time_array[i])
                     else:
                         time_feasibleMask[i] = False
-                        # feasible_latest_time_array[i] = 0.1
+
                     time_urgency_index[i] = min(- self.crtTime + back_action_start_time - action_states_vec[int(back_action)], time_urgency_index[i])
 
         time_urgency_index[np.where(time_urgency_index == 10000)[0]] = max(time_urgency_index[np.where(time_urgency_index != 10000)[0]]) + 1
@@ -258,9 +244,10 @@ class ProgEnv(Constraints, ReadInfo):
         feasibleActivity, time_infeasibleActivity, time_urgency_index = self.feasibleDetermine()
         self.steps += 1
         return_mask = ~self.action_feasibleMask
-        if action ==  1:
-            return_mask = np.full(shape=self.action_space.n, fill_value=1, dtype=bool)
-            return_mask[5] = False
+        ######### use when train lot 1, else set as notes ###########
+        # if action ==  1:
+        #     return_mask = np.full(shape=self.action_space.n, fill_value=1, dtype=bool)
+        #     return_mask[5] = False
 
         self.done = bool(self.steps == len(self.Activity_mode_Num))
 
@@ -286,10 +273,7 @@ class ProgEnv(Constraints, ReadInfo):
             self.nonFeasibleActivities = np.delete(self.nonFeasibleActivities, inds)
 
         reward = - self.nonFeasibleActivities.shape[0] * (500 / len(self.activities)) # \
-                               #  - ((not timeFeasible)
-                               # + (not actionFeasible)
-                               # + (not nonRenewFeasible)
-                               # + (not RenewFeasible)) * (500 / len(self.activities))
+
         # after taking action, there may exist some activities that should tak earlier
         if self.crtTime > latest_time:
             reward -= (self.crtTime - latest_time)*2  # **2
@@ -339,12 +323,10 @@ class ProgEnv(Constraints, ReadInfo):
         self.actionSeq = []
         self.nonFeasibleActivities = np.array([])
         self.crtTime = 0
-        self.lastTime = 0
         self.done = False
-        self.stateGraph = np.zeros((self.action_space.n, self.action_space.n)) #np.ones((self.action_space.n, self.action_space.n)) * (-np.inf)  # non-direction graph
+        self.stateGraph = np.zeros((self.action_space.n, self.action_space.n))   # non-direction graph
         self.actStatus = np.zeros(self.action_space.n)
         self.actStatus[-1] = -1
-        self.timeStatus = np.zeros(self.action_space.n)
         self.resetStateGraph()
         self.logicGraph1[1, 0] = 1
         self.pastMask = np.full(shape=self.action_space.n, fill_value=0, dtype=bool)
@@ -354,14 +336,11 @@ class ProgEnv(Constraints, ReadInfo):
         self.time_feasibleMask[0] = True
         self.feasiblemask = self.action_feasibleMask * self.time_feasibleMask
         self.candidate = np.arange(self.action_space.n)
-        self.recStatus = np.zeros(self.action_space.n)
-        self.durStatus = np.zeros(self.action_space.n)
         self.timeFeasible = []
         self.nonRenewFeasible = []
         self.renewFeasible = []
         self.actFeasible = []
         self.not_feasible_history = 0
-        self.which_step_infeasible = 0
         self.past_feasible_acts = np.zeros(self.action_space.n)
         feasible_weights = np.full(shape=self.action_space.n, fill_value=0, dtype=int)
         feasible_weights[0] = 1
